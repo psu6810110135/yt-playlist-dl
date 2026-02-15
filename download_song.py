@@ -6,6 +6,34 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+# ANSI color codes for better CLI appearance
+class Colors:
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    MAGENTA = '\033[95m'
+    CYAN = '\033[96m'
+    WHITE = '\033[97m'
+    UNDERLINE = '\033[4m'
+
+def print_header():
+    """Print a nice header"""
+    print(f"{Colors.CYAN}{Colors.BOLD}")
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║                    YouTube Playlist Downloader             ║")
+    print("║                      Async + Threading                      ║")
+    print("╚══════════════════════════════════════════════════════════════╝")
+    print(f"{Colors.RESET}")
+
+def print_section(title):
+    """Print a section header"""
+    print(f"\n{Colors.YELLOW}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.RESET}")
+    print(f"{Colors.CYAN}{Colors.BOLD}  {title}{Colors.RESET}")
+    print(f"{Colors.YELLOW}{Colors.BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.RESET}")
+
 # Shared list and lock for results (removed - using return values instead)
 
 def get_playlist_info(playlist_url):
@@ -22,21 +50,29 @@ def get_playlist_info(playlist_url):
         playlist_info = ydl.extract_info(playlist_url, download=False)
     return playlist_info
 
-def download_song(video_url, playlist_name):
+def download_song(video_url, playlist_name, format_type):
     try:
-        print(f"🧵 Thread {threading.current_thread().name}: Starting download for {video_url}")
+        print(f"{Colors.MAGENTA}🧵 Thread {threading.current_thread().name}: Starting download for {video_url}{Colors.RESET}")
         
-        options = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'outtmpl': f'{playlist_name}/%(title)s.%(ext)s',
-            'quiet': True,
-            'no_warnings': True,
-        }
+        if format_type == 'mp3':
+            options = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'outtmpl': f'{playlist_name}/%(title)s.%(ext)s',
+                'quiet': True,
+                'no_warnings': True,
+            }
+        else:  # mp4
+            options = {
+                'format': 'best[ext=mp4]/best',
+                'outtmpl': f'{playlist_name}/%(title)s.%(ext)s',
+                'quiet': True,
+                'no_warnings': True,
+            }
         with yt_dlp.YoutubeDL(options) as ydl:
             ydl.download([video_url])
         
@@ -47,9 +83,26 @@ def download_song(video_url, playlist_name):
         return {'status': 'Fail', 'message': error_msg}
 
 async def main():
-    playlist_url = input("Enter playlist URL: ")
+    print_header()
     
-    print("🔄 Using asyncio.to_thread() for playlist metadata extraction...")
+    print_section("📥 Playlist Input")
+    playlist_url = input(f"{Colors.WHITE}Enter playlist URL: {Colors.RESET}")
+    
+    print_section("🎵 Format Selection")
+    print(f"{Colors.WHITE}Select download format:{Colors.RESET}")
+    print(f"{Colors.CYAN}1.{Colors.RESET} MP3 (Audio only)")
+    print(f"{Colors.CYAN}2.{Colors.RESET} MP4 (Video + Audio)")
+    format_choice = input(f"{Colors.WHITE}Enter choice (1 or 2): {Colors.RESET}").strip()
+    
+    if format_choice not in ['1', '2']:
+        print(f"{Colors.YELLOW}⚠️  Invalid choice. Defaulting to MP3.{Colors.RESET}")
+        format_choice = '1'
+    
+    format_type = 'mp3' if format_choice == '1' else 'mp4'
+    print(f"{Colors.GREEN}✅ Selected format: {format_type.upper()}{Colors.RESET}")
+    
+    print_section("🔍 Extracting Playlist Metadata")
+    print(f"{Colors.BLUE}🔄 Using asyncio.to_thread() for playlist metadata extraction...{Colors.RESET}")
     
     # Phase 1: Get playlist metadata
     playlist_info = await asyncio.to_thread(get_playlist_info, playlist_url)
@@ -57,7 +110,7 @@ async def main():
     # Get playlist name and create folder
     playlist_name = playlist_info.get('title', 'Playlist').replace('/', '_').replace('\\', '_')
     os.makedirs(playlist_name, exist_ok=True)
-    print(f"📁 Created folder: {playlist_name}")
+    print(f"{Colors.GREEN}📁 Created folder: {playlist_name}{Colors.RESET}")
     
     # Get songs from playlist
     songs = []
@@ -69,12 +122,13 @@ async def main():
         }
         songs.append(song_info)
     
-    print(f"Found {len(songs)} songs in playlist:")
+    print_section("📋 Playlist Contents")
+    print(f"{Colors.WHITE}Found {len(songs)} songs in playlist:{Colors.RESET}")
     for i, song in enumerate(songs, 1):
-        print(f"{i}. {song['title']} - {song['url']} ({song['duration']}s)")
+        print(f"{Colors.CYAN}{i:2d}.{Colors.RESET} {Colors.MAGENTA}{song['title']}{Colors.RESET} - {Colors.BLUE}{song['url']}{Colors.RESET} ({Colors.YELLOW}{song['duration']}s{Colors.RESET})")
     
-    # Phase 2: Download songs concurrently
-    print("\n🔄 Using ThreadPoolExecutor(max_workers=5) for concurrent downloads...")
+    print_section("⚡ Concurrent Downloads")
+    print(f"{Colors.BLUE}🔄 Using ThreadPoolExecutor(max_workers=5) for concurrent downloads...{Colors.RESET}")
     
     # Start timer for downloads
     download_start_time = time.time()
@@ -82,11 +136,11 @@ async def main():
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = []
         for song in songs:
-            print(f"📤 Submitting download task: {song['title']}")
-            future = executor.submit(download_song, song['url'], playlist_name)
+            print(f"{Colors.CYAN}📤 Submitting download task:{Colors.RESET} {Colors.MAGENTA}{song['title']}{Colors.RESET}")
+            future = executor.submit(download_song, song['url'], playlist_name, format_type)
             futures.append(future)
         
-        print("⏳ Waiting for all download threads to complete...")
+        print(f"{Colors.YELLOW}⏳ Waiting for all download threads to complete...{Colors.RESET}")
         # Convert concurrent.futures to asyncio futures and wait
         futures_async = [asyncio.wrap_future(f) for f in futures]
         results = await asyncio.gather(*futures_async)
@@ -95,23 +149,23 @@ async def main():
     download_end_time = time.time()
     total_download_time = download_end_time - download_start_time
     
-    print(f"\nDownload Summary:")
-    print(f"⏱️ Total download time: {total_download_time:.2f} seconds")
+    print_section("📊 Download Summary")
+    print(f"{Colors.GREEN}⏱️  Total download time: {total_download_time:.2f} seconds{Colors.RESET}")
     success_count = sum(1 for r in results if r['status'] == 'Success')
     fail_count = len(results) - success_count
-    print(f"Successful: {success_count}")
-    print(f"Failed: {fail_count}")
+    print(f"{Colors.GREEN}✅ Successful: {success_count}{Colors.RESET}")
+    print(f"{Colors.RED}❌ Failed: {fail_count}{Colors.RESET}")
     
     if success_count > 0:
         avg_time_per_song = total_download_time / success_count
-        print(f"⏱️ Average time per song: {avg_time_per_song:.2f} seconds")
+        print(f"{Colors.BLUE}⏱️  Average time per song: {avg_time_per_song:.2f} seconds{Colors.RESET}")
     
     if fail_count > 0:
-        print("\nFailed downloads:")
+        print(f"\n{Colors.RED}Failed downloads:{Colors.RESET}")
         for i, result in enumerate(results):
             if result['status'] == 'Fail':
                 song = songs[i]
-                print(f"- {song['title']}: {result['message']}")
+                print(f"{Colors.RED}  • {song['title']}: {result['message']}{Colors.RESET}")
 
 if __name__ == "__main__":
     asyncio.run(main())
