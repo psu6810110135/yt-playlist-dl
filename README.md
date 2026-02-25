@@ -72,7 +72,7 @@ flowchart TD
 
 ```
 youtube-playlist-downloader/
-├── downloader.py        # ไฟล์หลักของโปรแกรม
+├── download_song.py        # ไฟล์หลักของโปรแกรม
 ├── requirements.txt     # dependencies
 └── README.md            # เอกสารโปรแกรม
 ```
@@ -110,7 +110,7 @@ winget install ffmpeg
 ### 3. รันโปรแกรม
 
 ```bash
-python downloader.py
+python download_song.py
 ```
 
 ### 4. ทำตามขั้นตอน
